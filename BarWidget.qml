@@ -41,21 +41,29 @@ BarWidget {
     onLoaded: { root.injectPanel(); Qt.callLater(root.injectPanel) }
   }
 
-  // omarchy-shell vianney.aelf toggle | open <office>
+  // omarchy-shell vianney.aelf toggle | open <office> | status
   // office : messes, lectures, laudes, tierce, sexte, none, vepres, complies
+  // Le widget existe en plusieurs exemplaires (un par écran, plus une copie
+  // invisible) : on passe par la barre pour viser celui de l'écran actif.
   IpcHandler {
     target: "vianney.aelf"
-    function toggle(): void { root.toggle() }
-    function close(): void { root.close() }
-    function status(): string {
-      var p = root.panelItem
-      return p ? JSON.stringify({ opened: p.opened, date: p.date, office: p.officeId, loading: p.loading, error: p.error }) : "{}"
+    function widget() {
+      var w = root.bar && typeof root.bar.findPanelWidget === "function"
+        ? root.bar.findPanelWidget(root.moduleName) : null
+      return w || root
     }
+    function toggle(): void { widget().toggle() }
+    function close(): void { widget().close() }
     function open(office: string): void {
-      if (!root.panelItem) return
+      var w = widget()
+      if (!w.panelItem) return
       var i = ["messes", "lectures", "laudes", "tierce", "sexte", "none", "vepres", "complies"].indexOf(office)
-      if (i >= 0) root.panelItem.showOffice(i)
-      root.open()
+      if (i >= 0) w.panelItem.showOffice(i)
+      w.open()
+    }
+    function status(): string {
+      var p = widget().panelItem
+      return p ? JSON.stringify({ opened: p.opened, date: p.date, office: p.officeId, section: p.section ? p.section.label : "", loading: p.loading, error: p.error }) : "{}"
     }
   }
 
@@ -63,7 +71,7 @@ BarWidget {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: "✝"
+    text: "󰂢"  // nf-md-book_cross, police du thème
     active: root.opened
     useActiveColor: true
     tooltipText: {
