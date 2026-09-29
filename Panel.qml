@@ -38,12 +38,19 @@ Panel {
   property var cache: ({})
   property bool loading: false
   property string error: ""
+  property bool editingDate: false
+  property string dateError: ""
 
   readonly property string officeId: Model.OFFICES[officeIndex].id
   readonly property var current: cache[date + "/" + officeId] || null
   readonly property var info: {
     var d = cache[date + "/informations"] || current
     return d && d.informations ? d.informations : null
+  }
+  // L'API ne couvre qu'une plage de dates (404 au-delà) : on le retient.
+  readonly property bool dateAbsent: {
+    var d = cache[date + "/informations"]
+    return d ? d.absent === true : false
   }
   readonly property var messes: current && current.messes ? current.messes : []
   readonly property int messeShown: {
@@ -52,7 +59,7 @@ Panel {
     return 0
   }
   readonly property var sections: {
-    if (!current) return []
+    if (!current || current.absent) return []
     var a = String(Color.accent), d = String(root.dim)
     if (officeId === "messes") return Model.messeSections(messes[messeShown], a, d)
     return Model.officeSections(current[officeId], a, d)
@@ -96,6 +103,43 @@ Panel {
     slideDirection = i > sectionIndex ? 1 : -1
     sectionIndex = i
     slide.restart()
+  }
+
+  function setDate(iso) {
+    if (!iso || iso === date) return
+    slideDirection = iso > date ? 1 : -1
+    date = iso
+    messeIndex = -1
+    sectionIndex = 0
+    ensure("informations")
+    ensure(officeId)
+    slide.restart()
+  }
+
+  // Saisie libre (voir Model.parseDate) ; renvoie la date retenue ou "".
+  function goTo(texte) {
+    var iso = Model.parseDate(texte, date)
+    if (iso) setDate(iso)
+    return iso
+  }
+
+  function startEditDate() {
+    dateError = ""
+    editingDate = true
+    Qt.callLater(function() {
+      dateField.text = ""
+      dateField.forceActiveFocus()
+    })
+  }
+  function stopEditDate() {
+    editingDate = false
+    dateError = ""
+    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+  }
+  function commitDate() {
+    if (dateField.text.trim() === "") { stopEditDate(); return }
+    if (goTo(dateField.text)) stopEditDate()
+    else dateError = "Date non comprise : essayez 25/12, 8 décembre, +7…"
   }
 
   function reload() {
@@ -162,6 +206,12 @@ Panel {
           root.cache = c
           root.error = ""
         } catch (e) { root.error = "Réponse illisible de l'API AELF." }
+      } else if (code === 22) {
+        // Erreur HTTP (404) : pas de textes publiés pour cette date.
+        var c2 = Object.assign({}, root.cache)
+        c2[key] = { absent: true }
+        root.cache = c2
+        root.error = ""
       } else {
         root.error = "Impossible de joindre api.aelf.org (r pour réessayer)."
       }
@@ -182,6 +232,7 @@ Panel {
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
+      blocked: root.editingDate
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.showOffice(root.officeIndex + direction) }
       onMoveRequested: function(dx, dy) {
@@ -191,6 +242,10 @@ Panel {
       onActivateRequested: flick.scrollBy(flick.height * 0.85)
       onTextKey: function(t) {
         if (t === "r" || t === "R") root.reload()
+        else if (t === "p" || t === "P") root.setDate(Model.addDays(root.date, -1))
+        else if (t === "s" || t === "S") root.setDate(Model.addDays(root.date, 1))
+        else if (t === "a" || t === "A") root.setDate(root.today)
+        else if (t === "d" || t === "D") root.startEditDate()
         else if (t >= "1" && t <= "8") root.showOffice(parseInt(t, 10) - 1)
         else if ((t === "m" || t === "M") && root.messes.length > 1)
           root.showMesse((root.messeShown + 1) % root.messes.length)
@@ -206,13 +261,89 @@ Panel {
           width: parent.width
           spacing: Style.space(3)
 
-          Text {
-            text: Qt.locale("fr_FR").toString(new Date(root.date + "T12:00:00"), "dddd d MMMM yyyy")
-            color: root.dim
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.caption
-            font.capitalization: Font.AllUppercase
-            font.letterSpacing: 1
+          // Date : ‹ jour › ; un clic sur la date (ou d) ouvre la saisie.
+          Row {
+            width: parent.width
+            spacing: Style.spacing.sm
+
+            Button {
+              anchors.verticalCenter: parent.verticalCenter
+              text: "‹"
+              tooltipText: "Jour précédent (p)"
+              foreground: root.fg
+              fontFamily: root.fontFamily
+              fontSize: Style.font.body
+              verticalPadding: Style.spacing.xxs
+              onClicked: root.setDate(Model.addDays(root.date, -1))
+            }
+
+            Item {
+              anchors.verticalCenter: parent.verticalCenter
+              width: root.editingDate ? dateField.width : dateLabel.implicitWidth
+              height: root.editingDate ? dateField.height : dateLabel.implicitHeight
+
+              Text {
+                id: dateLabel
+                anchors.verticalCenter: parent.verticalCenter
+                visible: !root.editingDate
+                text: Qt.locale("fr_FR").toString(new Date(root.date + "T12:00:00"), "dddd d MMMM yyyy")
+                color: dateHover.hovered ? root.fg : root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                font.capitalization: Font.AllUppercase
+                font.letterSpacing: 1
+                HoverHandler { id: dateHover; cursorShape: Qt.PointingHandCursor }
+                TapHandler { onTapped: root.startEditDate() }
+              }
+
+              TextField {
+                id: dateField
+                visible: root.editingDate
+                width: Style.space(220)
+                placeholderText: "25/12, 8 décembre, +7, demain…"
+                foreground: root.fg
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                onActiveFocusChanged: if (!activeFocus && root.editingDate) root.stopEditDate()
+                Keys.onPressed: function(event) {
+                  if (event.key === Qt.Key_Escape) { root.stopEditDate(); event.accepted = true }
+                  else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { root.commitDate(); event.accepted = true }
+                }
+              }
+            }
+
+            Button {
+              anchors.verticalCenter: parent.verticalCenter
+              text: "›"
+              tooltipText: "Jour suivant (s)"
+              foreground: root.fg
+              fontFamily: root.fontFamily
+              fontSize: Style.font.body
+              verticalPadding: Style.spacing.xxs
+              onClicked: root.setDate(Model.addDays(root.date, 1))
+            }
+
+            Button {
+              anchors.verticalCenter: parent.verticalCenter
+              visible: root.date !== root.today && !root.editingDate
+              text: "Aujourd'hui"
+              tooltipText: "Revenir à aujourd'hui (a)"
+              bordered: true
+              foreground: root.fg
+              fontFamily: root.fontFamily
+              fontSize: Style.font.caption
+              verticalPadding: Style.spacing.xxs
+              onClicked: root.setDate(root.today)
+            }
+
+            Text {
+              anchors.verticalCenter: parent.verticalCenter
+              visible: root.editingDate && root.dateError !== ""
+              text: root.dateError
+              color: Color.urgent
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+            }
           }
 
           Row {
@@ -229,7 +360,9 @@ Panel {
             }
             Text {
               width: parent.width - Style.space(18)
-              text: root.info ? (root.info.ligne1 || root.info.jour_liturgique_nom || "") : (root.error || "Chargement…")
+              text: root.info ? (root.info.ligne1 || root.info.jour_liturgique_nom || "")
+                : root.dateAbsent ? "Pas de textes AELF pour ce jour"
+                : (root.error || "Chargement…")
               color: root.fg
               font.family: root.readingFont
               font.pixelSize: Style.font.display
@@ -461,7 +594,9 @@ Panel {
               Text {
                 width: parent.width
                 text: root.section ? root.section.html
-                  : (root.loading ? "Chargement…" : (root.error || "Rien pour cet office."))
+                  : (root.loading ? "Chargement…"
+                    : root.current && root.current.absent ? "L'AELF ne propose pas de textes pour cette date."
+                    : (root.error || "Rien pour cet office."))
                 textFormat: root.section ? Text.RichText : Text.PlainText
                 wrapMode: Text.Wrap
                 color: root.section ? root.fg : root.dim
@@ -481,7 +616,7 @@ Panel {
         height: Style.space(18)
 
         Row {
-          anchors.centerIn: parent
+          anchors { left: parent.left; verticalCenter: parent.verticalCenter }
           spacing: Style.space(5)
           Repeater {
             model: root.sections.length
@@ -498,7 +633,7 @@ Panel {
         }
         Text {
           anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-          text: "← → textes · Tab offices"
+          text: "← → textes · Tab offices · p s jours · d date"
           color: root.line
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption

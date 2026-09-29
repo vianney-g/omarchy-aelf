@@ -48,6 +48,57 @@ function isoDate(d) {
   return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate())
 }
 
+function parseIso(iso) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso)
+  return m ? new Date(+m[1], +m[2] - 1, +m[3], 12) : null
+}
+
+function addDays(iso, n) {
+  var d = parseIso(iso)
+  d.setDate(d.getDate() + n)
+  return isoDate(d)
+}
+
+var MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet",
+            "août", "septembre", "octobre", "novembre", "décembre"]
+
+function sansAccents(t) {
+  if (typeof t.normalize === "function") return t.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+  return t.replace(/[éèêë]/g, "e").replace(/[àâ]/g, "a").replace(/[ûüù]/g, "u")
+          .replace(/[îï]/g, "i").replace(/ô/g, "o").replace(/ç/g, "c")
+}
+
+// Date saisie à la main, relative à `ref` (date ISO) :
+// « 25/12 », « 25/12/2026 », « 25-12-26 », « 2026-12-25 », « 25 décembre »,
+// « 1er mai 2027 », « +3 », « -7 », « demain », « hier », « auj ».
+// Renvoie une date ISO, ou "" si la saisie n'est pas comprise.
+function parseDate(texte, ref) {
+  var t = sansAccents(String(texte).trim().toLowerCase())
+  if (t === "") return ""
+  if (/^auj/.test(t)) return isoDate(new Date())
+  if (t === "demain") return addDays(isoDate(new Date()), 1)
+  if (t === "hier") return addDays(isoDate(new Date()), -1)
+  var m = /^([+-])\s*(\d+)$/.exec(t)
+  if (m) return addDays(ref, (m[1] === "-" ? -1 : 1) * parseInt(m[2], 10))
+
+  var an = parseIso(ref).getFullYear(), mois = -1, jour = -1
+  if ((m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(t))) {
+    an = +m[1]; mois = +m[2]; jour = +m[3]
+  } else if ((m = /^(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2}|\d{4}))?$/.exec(t))) {
+    jour = +m[1]; mois = +m[2]
+    if (m[3]) an = m[3].length === 2 ? 2000 + +m[3] : +m[3]
+  } else if ((m = /^(\d{1,2})(?:er)?\s+([a-z]+)(?:\s+(\d{4}))?$/.exec(t))) {
+    jour = +m[1]
+    for (var i = 0; i < MOIS.length; i++)
+      if (sansAccents(MOIS[i]).indexOf(m[2]) === 0 && m[2].length >= 3) { mois = i + 1; break }
+    if (m[3]) an = +m[3]
+  }
+  if (mois < 1 || mois > 12 || jour < 1) return ""
+  var d = new Date(an, mois - 1, jour, 12)
+  if (d.getMonth() !== mois - 1 || d.getDate() !== jour) return ""
+  return isoDate(d)
+}
+
 function url(office, date, zone) {
   return API + office + "/" + date + "/" + zone
 }

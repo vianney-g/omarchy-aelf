@@ -61,9 +61,17 @@ BarWidget {
       if (i >= 0) w.panelItem.showOffice(i)
       w.open()
     }
+    // date : 25/12, 2026-12-25, +7, demain… (voir Model.parseDate)
+    function date(texte: string): string {
+      var w = widget()
+      if (!w.panelItem) return ""
+      var iso = w.panelItem.goTo(texte)
+      w.open()
+      return iso
+    }
     function status(): string {
       var p = widget().panelItem
-      return p ? JSON.stringify({ opened: p.opened, date: p.date, office: p.officeId, section: p.section ? p.section.label : "", loading: p.loading, error: p.error }) : "{}"
+      return p ? JSON.stringify({ opened: p.opened, date: p.date, office: p.officeId, section: p.section ? p.section.label : "", editingDate: p.editingDate, absent: p.dateAbsent, loading: p.loading, error: p.error }) : "{}"
     }
   }
 
