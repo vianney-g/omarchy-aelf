@@ -43,12 +43,8 @@ Clic droit sur l'icône : recharger.
 omarchy plugin add https://github.com/vianney-g/omarchy-aelf --enable
 ```
 
-ou à la main :
-
-```bash
-git clone https://github.com/vianney-g/omarchy-aelf ~/.config/omarchy/plugins/io.github.vianney-g.aelf
-omarchy plugin enable io.github.vianney-g.aelf --section right
-```
+L'icône se place à droite de la barre ; pour la déplacer :
+`omarchy bar move io.github.vianney-g.aelf --section left`.
 
 ## Désinstallation
 
