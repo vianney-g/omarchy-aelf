@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "vianney.aelf",
+  "name": "AELF",
+  "version": "0.1.0",
+  "author": "Vianney Gremmel",
+  "description": "Lectures de la messe et prière des Heures du jour, depuis l'API de l'AELF",
+  "license": "MIT",
+  "kinds": ["bar-widget"],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "AELF",
+    "description": "Lectures du jour : messe et offices",
+    "category": "Plugin",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}
