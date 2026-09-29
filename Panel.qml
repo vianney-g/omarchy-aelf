@@ -350,16 +350,20 @@ Panel {
             width: parent.width
             spacing: Style.space(8)
 
+            // Aplat de la couleur liturgique du jour sélectionné, bordé pour
+            // rester visible quand la couleur est proche du fond (blanc…).
             Rectangle {
-              anchors.verticalCenter: parent.verticalCenter
-              width: Style.space(10); height: width; radius: Style.cornerRadius
+              width: Style.space(4)
+              height: feastTitle.height
+              radius: Style.cornerRadius
               color: Model.couleur(root.info ? root.info.couleur : "")
               border.width: Style.normalBorderWidth
               border.color: root.line
               visible: root.info !== null
             }
             Text {
-              width: parent.width - Style.space(18)
+              id: feastTitle
+              width: parent.width - Style.space(12)
               text: root.info ? (root.info.ligne1 || root.info.jour_liturgique_nom || "")
                 : root.dateAbsent ? "Pas de textes AELF pour ce jour"
                 : (root.error || "Chargement…")

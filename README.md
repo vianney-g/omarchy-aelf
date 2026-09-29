@@ -13,7 +13,8 @@ the Hours in French, from the official AELF API. A bar icon opens a reading pane
 
 Une icône dans la barre (infobulle : le jour liturgique) ouvre un panneau :
 
-- En-tête : date, fête ou férie, pastille de la couleur liturgique.
+- En-tête : date, fête ou férie, aplat de la couleur liturgique ; la même
+  couleur apparaît en pastille discrète sur l'icône de la barre.
 - Onglets : Messe, Lectures, Laudes, Tierce, Sexte, None, Vêpres, Complies.
 - Sous chaque onglet, un carrousel des textes (1re lecture, Psaume, Évangile ;
   psaumes, cantiques, oraison…) : un seul texte affiché à la fois.

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.vianney-g.aelf",
   "name": "AELF",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Vianney Gremmel",
   "description": "Lectures de la messe et prière des Heures du jour, depuis l'API de l'AELF",
   "license": "MIT",

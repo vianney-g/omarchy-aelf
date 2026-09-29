@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell.Io
 import qs.Commons
 import qs.Ui
+import "Model.js" as Model
 
 // Icône dans la barre : clic gauche ouvre le panneau de lecture, clic droit
 // recharge. L'infobulle donne le jour liturgique.
@@ -91,5 +92,19 @@ BarWidget {
       if (b === Qt.RightButton) { if (root.panelItem) root.panelItem.reload() }
       else root.toggle()
     }
+  }
+
+  // Pastille discrète de la couleur liturgique du jour affiché, dans le coin
+  // de l'icône.
+  Rectangle {
+    readonly property var info: root.panelItem ? root.panelItem.info : null
+    visible: info !== null
+    anchors { right: button.right; bottom: button.bottom; rightMargin: Style.space(4); bottomMargin: Style.space(4) }
+    width: Style.space(5)
+    height: width
+    radius: Style.cornerRadius
+    color: Model.couleur(info ? info.couleur : "")
+    border.width: Style.normalBorderWidth
+    border.color: Style.normalBorderFor(root.bar ? root.bar.foreground : Color.foreground, Color.accent)
   }
 }
