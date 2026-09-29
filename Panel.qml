@@ -11,7 +11,7 @@ import "Model.js" as Model
 // Les réponses de l'API sont gardées en mémoire par date.
 Panel {
   id: root
-  moduleName: "vianney.aelf"
+  moduleName: "io.github.vianney-g.aelf"
   manageIpc: false
 
   property var anchorItem: null

@@ -7,6 +7,8 @@ prière des Heures du jour, en français, tirées de l'API officielle de l'[AELF
 *An Omarchy shell plugin showing today's Catholic Mass readings and Liturgy of
 the Hours in French, from the official AELF API. A bar icon opens a reading panel.*
 
+![Le panneau à Noël : messe du jour, première lecture](preview.png)
+
 ## Fonctionnement
 
 Une icône dans la barre (infobulle : le jour liturgique) ouvre un panneau :
@@ -44,25 +46,25 @@ omarchy plugin add https://github.com/vianney-g/omarchy-aelf --enable
 ou à la main :
 
 ```bash
-git clone https://github.com/vianney-g/omarchy-aelf ~/.config/omarchy/plugins/vianney.aelf
-omarchy plugin enable vianney.aelf --section right
+git clone https://github.com/vianney-g/omarchy-aelf ~/.config/omarchy/plugins/io.github.vianney-g.aelf
+omarchy plugin enable io.github.vianney-g.aelf --section right
 ```
 
 ## Désinstallation
 
 ```bash
-omarchy plugin remove vianney.aelf
+omarchy plugin remove io.github.vianney-g.aelf
 ```
 
-(ou `omarchy plugin disable vianney.aelf`, puis supprimer
-`~/.config/omarchy/plugins/vianney.aelf`).
+(ou `omarchy plugin disable io.github.vianney-g.aelf`, puis supprimer
+`~/.config/omarchy/plugins/io.github.vianney-g.aelf`).
 
 ## Réglages
 
 Facultatifs, dans l'entrée du widget de `~/.config/omarchy/shell.json` :
 
 ```json
-{ "id": "vianney.aelf", "zone": "afrique", "fontSize": 16, "readingFont": "serif" }
+{ "id": "io.github.vianney-g.aelf", "zone": "afrique", "fontSize": 16, "readingFont": "serif" }
 ```
 
 - `zone` : calendrier liturgique — `afrique` (défaut), `france`, `belgique`,
@@ -77,9 +79,9 @@ couleur liturgique du jour.
 Raccourcis et scripts :
 
 ```bash
-omarchy-shell shell toggle vianney.aelf      # ouvrir / fermer
-omarchy-shell vianney.aelf open laudes       # un office précis
-omarchy-shell vianney.aelf date 25/12        # une date
+omarchy-shell shell toggle io.github.vianney-g.aelf      # ouvrir / fermer
+omarchy-shell io.github.vianney-g.aelf open laudes       # un office précis
+omarchy-shell io.github.vianney-g.aelf date 25/12        # une date
 ```
 
 ## Dépendances

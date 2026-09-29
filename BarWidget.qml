@@ -7,7 +7,7 @@ import qs.Ui
 // recharge. L'infobulle donne le jour liturgique.
 BarWidget {
   id: root
-  moduleName: "vianney.aelf"
+  moduleName: "io.github.vianney-g.aelf"
 
   readonly property var panelItem: panelLoader.item
   readonly property bool opened: panelItem ? panelItem.opened === true : false
@@ -41,12 +41,12 @@ BarWidget {
     onLoaded: { root.injectPanel(); Qt.callLater(root.injectPanel) }
   }
 
-  // omarchy-shell vianney.aelf toggle | open <office> | status
+  // omarchy-shell io.github.vianney-g.aelf toggle | open <office> | status
   // office : messes, lectures, laudes, tierce, sexte, none, vepres, complies
   // Le widget existe en plusieurs exemplaires (un par écran, plus une copie
   // invisible) : on passe par la barre pour viser celui de l'écran actif.
   IpcHandler {
-    target: "vianney.aelf"
+    target: "io.github.vianney-g.aelf"
     function widget() {
       var w = root.bar && typeof root.bar.findPanelWidget === "function"
         ? root.bar.findPanelWidget(root.moduleName) : null
