@@ -72,7 +72,7 @@ BarWidget {
     }
     function status(): string {
       var p = widget().panelItem
-      return p ? JSON.stringify({ opened: p.opened, date: p.date, office: p.officeId, section: p.section ? p.section.label : "", editingDate: p.editingDate, absent: p.dateAbsent, loading: p.loading, error: p.error }) : "{}"
+      return p ? JSON.stringify({ opened: p.opened, date: p.date, office: p.officeId, section: p.section ? p.section.label : "", editingDate: p.editingDate, absent: p.dateAbsent, cachedDates: p.recentDates.length, cacheEntries: Object.keys(p.cache).length, loading: p.loading, error: p.error }) : "{}"
     }
   }
 

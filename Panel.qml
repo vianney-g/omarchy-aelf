@@ -150,6 +150,24 @@ Panel {
     ensure(officeId)
   }
 
+  // Bornes mémoire : une réponse de l'API fait au plus ~35 Ko, on coupe à
+  // 1 Mio ; le cache ne garde que les dernières dates consultées (plus la
+  // date affichée et aujourd'hui).
+  readonly property int maxBytes: 1048576
+  readonly property int maxDates: 7
+  property var recentDates: []
+
+  function store(key, value) {
+    var d = key.split("/")[0]
+    var recent = [d].concat(recentDates.filter(function(x) { return x !== d }))
+    var keep = recent.slice(0, maxDates).concat([date, today])
+    var c = {}
+    for (var k in cache) if (keep.indexOf(k.split("/")[0]) >= 0) c[k] = cache[k]
+    c[key] = value
+    recentDates = recent.slice(0, maxDates)
+    cache = c
+  }
+
   // Un seul curl à la fois ; ce qui arrive entre-temps est rejoué à la fin.
   property var queue: []
   function ensure(office) {
@@ -164,7 +182,12 @@ Panel {
     queue = queue.slice(1)
     var parts = key.split("/")
     fetchProc.key = key
-    fetchProc.command = ["curl", "-fsS", "--max-time", "15", Model.url(parts[1], parts[0], root.zone)]
+    // --max-filesize coupe dès que la taille dépasse la borne ; head -c la
+    // garantit quelle que soit la version de curl, réponses en flux comprises :
+    // le shell ne reçoit jamais plus de maxBytes octets.
+    fetchProc.command = ["bash", "-c",
+      'set -o pipefail; curl -fsS --max-time 15 --max-filesize "$2" "$1" | head -c "$2"',
+      "aelf-fetch", Model.url(parts[1], parts[0], root.zone), String(root.maxBytes)]
     root.loading = true
     fetchProc.running = true
   }
@@ -201,17 +224,16 @@ Panel {
       root.loading = false
       if (code === 0) {
         try {
-          var c = Object.assign({}, root.cache)
-          c[key] = JSON.parse(out.text)
-          root.cache = c
+          root.store(key, JSON.parse(out.text))
           root.error = ""
         } catch (e) { root.error = "Réponse illisible de l'API AELF." }
       } else if (code === 22) {
         // Erreur HTTP (404) : pas de textes publiés pour cette date.
-        var c2 = Object.assign({}, root.cache)
-        c2[key] = { absent: true }
-        root.cache = c2
+        root.store(key, { absent: true })
         root.error = ""
+      } else if (code === 63 || code === 23 || code === 141) {
+        // 63 : --max-filesize ; 23 / 141 : head -c a fermé le tube.
+        root.error = "Réponse de l'API AELF anormalement volumineuse, ignorée."
       } else {
         root.error = "Impossible de joindre api.aelf.org (r pour réessayer)."
       }
