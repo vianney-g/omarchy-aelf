@@ -41,6 +41,10 @@ Panel {
   property bool editingDate: false
   property string dateError: ""
 
+  // Émis à chaque changement de texte, d'office ou de date : les vues
+  // rejouent leur animation de glissement.
+  signal slid()
+
   readonly property string officeId: Model.OFFICES[officeIndex].id
   readonly property var current: cache[date + "/" + officeId] || null
   readonly property var info: {
@@ -86,7 +90,7 @@ Panel {
     messeIndex = -1
     sectionIndex = 0
     ensure(officeId)
-    slide.restart()
+    root.slid()
   }
 
   function showMesse(i) {
@@ -94,7 +98,7 @@ Panel {
     slideDirection = i > messeShown ? 1 : -1
     messeIndex = i
     sectionIndex = 0
-    slide.restart()
+    root.slid()
   }
 
   function showSection(i) {
@@ -102,7 +106,7 @@ Panel {
     if (i === sectionIndex) return
     slideDirection = i > sectionIndex ? 1 : -1
     sectionIndex = i
-    slide.restart()
+    root.slid()
   }
 
   function setDate(iso) {
@@ -113,7 +117,7 @@ Panel {
     sectionIndex = 0
     ensure("informations")
     ensure(officeId)
-    slide.restart()
+    root.slid()
   }
 
   // Saisie libre (voir Model.parseDate) ; renvoie la date retenue ou "".
@@ -123,23 +127,35 @@ Panel {
     return iso
   }
 
+  // La saisie elle-même (champ, focus) est gérée par la vue : voir Reader.
   function startEditDate() {
     dateError = ""
     editingDate = true
-    Qt.callLater(function() {
-      dateField.text = ""
-      dateField.forceActiveFocus()
-    })
   }
   function stopEditDate() {
     editingDate = false
     dateError = ""
-    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
-  function commitDate() {
-    if (dateField.text.trim() === "") { stopEditDate(); return }
-    if (goTo(dateField.text)) stopEditDate()
-    else dateError = "Date non comprise : essayez 25/12, 8 décembre, +7…"
+
+  // ---- Fenêtre détachée : une vraie fenêtre Hyprland (en mosaïque), qui
+  //      affiche la même vue sur le même état que le panneau.
+  property bool windowed: false
+  readonly property string windowTitle: "AELF"
+
+  function detach() {
+    root.close()
+    root.ensure(root.officeId)
+    if (windowed) focusWindow()
+    else windowed = true
+  }
+  function attach() {
+    windowed = false
+    root.open()
+  }
+  // Hyprland 0.56 : les dispatchers s'écrivent en Lua.
+  function focusWindow() {
+    Quickshell.execDetached(["hyprctl", "dispatch",
+      'hl.dsp.focus({ window = "title:^' + windowTitle + '$" })'])
   }
 
   function reload() {
@@ -247,424 +263,42 @@ Panel {
     owner: root.barIdentity
     bar: root.bar
     open: root.opened
-    focusTarget: keyCatcher
+    focusTarget: panelReader
     contentWidth: panel.fittedContentWidth(Style.space(640))
     contentHeight: panel.fittedContentHeight(Style.space(1200), panel.availableCardHeight * 0.9)
 
-    PanelKeyCatcher {
-      id: keyCatcher
+    Reader {
+      id: panelReader
       anchors.fill: parent
-      blocked: root.editingDate
-      onCloseRequested: root.close()
-      onTabRequested: function(direction) { root.showOffice(root.officeIndex + direction) }
-      onMoveRequested: function(dx, dy) {
-        if (dx !== 0) root.showSection(root.sectionIndex + dx)
-        else flick.scrollBy(dy * 60)
-      }
-      onActivateRequested: flick.scrollBy(flick.height * 0.85)
-      onTextKey: function(t) {
-        if (t === "r" || t === "R") root.reload()
-        else if (t === "p" || t === "P") root.setDate(Model.addDays(root.date, -1))
-        else if (t === "s" || t === "S") root.setDate(Model.addDays(root.date, 1))
-        else if (t === "a" || t === "A") root.setDate(root.today)
-        else if (t === "d" || t === "D") root.startEditDate()
-        else if (t >= "1" && t <= "8") root.showOffice(parseInt(t, 10) - 1)
-        else if ((t === "m" || t === "M") && root.messes.length > 1)
-          root.showMesse((root.messeShown + 1) % root.messes.length)
-      }
+      s: root
+      onDismissRequested: root.close()
+      onDetachRequested: root.detach()
+    }
+  }
 
-      Column {
-        id: header
-        anchors { left: parent.left; right: parent.right; top: parent.top }
-        spacing: Style.space(10)
+  FloatingWindow {
+    id: readerWindow
+    visible: root.windowed
+    title: root.windowTitle
+    color: Color.background
+    implicitWidth: 760
+    implicitHeight: 900
+    minimumSize: Qt.size(480, 480)
 
-        // ---- Jour liturgique
-        Column {
-          width: parent.width
-          spacing: Style.space(3)
+    // Fermée par Hyprland (SUPER + W…) : on revient au mode panneau.
+    onVisibleChanged: {
+      if (visible) Qt.callLater(function() { windowReader.forceActiveFocus() })
+      else root.windowed = false
+    }
 
-          // Date : ‹ jour › ; un clic sur la date (ou d) ouvre la saisie.
-          Row {
-            width: parent.width
-            spacing: Style.spacing.sm
-
-            Button {
-              anchors.verticalCenter: parent.verticalCenter
-              text: "‹"
-              tooltipText: "Jour précédent (p)"
-              foreground: root.fg
-              fontFamily: root.fontFamily
-              fontSize: Style.font.body
-              verticalPadding: Style.spacing.xxs
-              onClicked: root.setDate(Model.addDays(root.date, -1))
-            }
-
-            Item {
-              anchors.verticalCenter: parent.verticalCenter
-              width: root.editingDate ? dateField.width : dateLabel.implicitWidth
-              height: root.editingDate ? dateField.height : dateLabel.implicitHeight
-
-              Text {
-                id: dateLabel
-                anchors.verticalCenter: parent.verticalCenter
-                visible: !root.editingDate
-                text: Qt.locale("fr_FR").toString(new Date(root.date + "T12:00:00"), "dddd d MMMM yyyy")
-                color: dateHover.hovered ? root.fg : root.dim
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.caption
-                font.capitalization: Font.AllUppercase
-                font.letterSpacing: 1
-                HoverHandler { id: dateHover; cursorShape: Qt.PointingHandCursor }
-                TapHandler { onTapped: root.startEditDate() }
-              }
-
-              TextField {
-                id: dateField
-                visible: root.editingDate
-                width: Style.space(220)
-                placeholderText: "25/12, 8 décembre, +7, demain…"
-                foreground: root.fg
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.caption
-                onActiveFocusChanged: if (!activeFocus && root.editingDate) root.stopEditDate()
-                Keys.onPressed: function(event) {
-                  if (event.key === Qt.Key_Escape) { root.stopEditDate(); event.accepted = true }
-                  else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { root.commitDate(); event.accepted = true }
-                }
-              }
-            }
-
-            Button {
-              anchors.verticalCenter: parent.verticalCenter
-              text: "›"
-              tooltipText: "Jour suivant (s)"
-              foreground: root.fg
-              fontFamily: root.fontFamily
-              fontSize: Style.font.body
-              verticalPadding: Style.spacing.xxs
-              onClicked: root.setDate(Model.addDays(root.date, 1))
-            }
-
-            Button {
-              anchors.verticalCenter: parent.verticalCenter
-              visible: root.date !== root.today && !root.editingDate
-              text: "Aujourd'hui"
-              tooltipText: "Revenir à aujourd'hui (a)"
-              bordered: true
-              foreground: root.fg
-              fontFamily: root.fontFamily
-              fontSize: Style.font.caption
-              verticalPadding: Style.spacing.xxs
-              onClicked: root.setDate(root.today)
-            }
-
-            Text {
-              anchors.verticalCenter: parent.verticalCenter
-              visible: root.editingDate && root.dateError !== ""
-              text: root.dateError
-              color: Color.urgent
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.caption
-            }
-          }
-
-          Row {
-            width: parent.width
-            spacing: Style.space(8)
-
-            // Aplat de la couleur liturgique du jour sélectionné, bordé pour
-            // rester visible quand la couleur est proche du fond (blanc…).
-            Rectangle {
-              width: Style.space(4)
-              height: feastTitle.height
-              radius: Style.cornerRadius
-              color: Model.couleur(root.info ? root.info.couleur : "")
-              border.width: Style.normalBorderWidth
-              border.color: root.line
-              visible: root.info !== null
-            }
-            Text {
-              id: feastTitle
-              width: parent.width - Style.space(12)
-              text: root.info ? (root.info.ligne1 || root.info.jour_liturgique_nom || "")
-                : root.dateAbsent ? "Pas de textes AELF pour ce jour"
-                : (root.error || "Chargement…")
-              color: root.fg
-              font.family: root.readingFont
-              font.pixelSize: Style.font.display
-              wrapMode: Text.Wrap
-            }
-          }
-
-          Text {
-            width: parent.width
-            visible: text !== ""
-            text: root.info ? [root.info.ligne2, root.info.ligne3].filter(function(s) { return s }).join(" · ") : ""
-            color: root.dim
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.body
-            wrapMode: Text.Wrap
-          }
-        }
-
-        // ---- Onglets : messe et offices. Remplissages et couleurs suivent
-        //      les états du thème (hover-cursor, selected).
-        Item {
-          width: parent.width
-          height: Style.spacing.controlHeight + Style.space(6)
-
-          Rectangle {
-            anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-            height: Math.max(1, Style.normalBorderWidth)
-            color: root.line
-          }
-
-          Row {
-            anchors.fill: parent
-
-            Repeater {
-              model: Model.OFFICES
-              delegate: Item {
-                id: tab
-                required property var modelData
-                required property int index
-                readonly property bool selected: index === root.officeIndex
-                width: parent.width / Model.OFFICES.length
-                height: parent.height
-
-                // Coins arrondis en haut seulement (si le thème en met) :
-                // le bas est recouvert.
-                Rectangle {
-                  anchors.fill: parent
-                  radius: Style.cornerRadius
-                  color: tabHover.hovered ? Style.hoverFillFor(root.fg, Color.accent)
-                    : tab.selected ? Style.selectedFillFor(root.fg, Color.accent)
-                    : "transparent"
-                  Rectangle {
-                    anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                    height: parent.radius
-                    color: parent.color
-                  }
-                }
-                Rectangle {
-                  anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                  height: Math.max(2, Style.selectedBorderWidth)
-                  color: root.selectedColor
-                  visible: tab.selected
-                }
-                Text {
-                  anchors.centerIn: parent
-                  text: tab.modelData.label
-                  color: tab.selected ? root.selectedColor : root.dim
-                  font.family: root.fontFamily
-                  font.pixelSize: Style.font.body
-                  font.bold: tab.selected
-                }
-                HoverHandler { id: tabHover; cursorShape: Qt.PointingHandCursor }
-                TapHandler { onTapped: root.showOffice(tab.index) }
-              }
-            }
-          }
-        }
-
-        // ---- Choix de la messe, les jours où il y en a plusieurs
-        Flow {
-          width: parent.width
-          spacing: Style.spacing.md
-          visible: root.officeId === "messes" && root.messes.length > 1
-
-          Repeater {
-            model: root.officeId === "messes" ? root.messes : []
-            delegate: Button {
-              required property var modelData
-              required property int index
-              text: modelData.nom
-              selected: index === root.messeShown
-              foreground: root.fg
-              fontFamily: root.fontFamily
-              fontSize: Style.font.caption
-              onClicked: root.showMesse(index)
-            }
-          }
-        }
-
-        // ---- Carrousel des textes
-        Item {
-          width: parent.width
-          height: Style.spacing.controlHeight
-          visible: root.sections.length > 0
-
-          Button {
-            id: prevArrow
-            anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-            text: "‹"
-            foreground: root.fg
-            fontFamily: root.fontFamily
-            fontSize: Style.font.heading
-            enabled: root.sectionIndex > 0
-            opacity: enabled ? 1 : 0.3
-            onClicked: root.showSection(root.sectionIndex - 1)
-          }
-          Button {
-            id: nextArrow
-            anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-            text: "›"
-            foreground: root.fg
-            fontFamily: root.fontFamily
-            fontSize: Style.font.heading
-            enabled: root.sectionIndex < root.sections.length - 1
-            opacity: enabled ? 1 : 0.3
-            onClicked: root.showSection(root.sectionIndex + 1)
-          }
-
-          ListView {
-            id: chips
-            anchors { left: prevArrow.right; right: nextArrow.left; top: parent.top; bottom: parent.bottom; leftMargin: Style.spacing.sm; rightMargin: Style.spacing.sm }
-            orientation: ListView.Horizontal
-            spacing: Style.spacing.md
-            clip: true
-            boundsBehavior: Flickable.StopAtBounds
-            model: root.sections
-            currentIndex: root.sectionIndex
-
-            // La pastille active glisse vers le centre.
-            function center() {
-              var item = itemAtIndex(currentIndex)
-              if (!item) { positionViewAtIndex(currentIndex, ListView.Center); return }
-              var target = item.x + item.width / 2 - width / 2
-              target = Math.max(originX, Math.min(target, originX + contentWidth - width))
-              if (contentWidth <= width) target = originX
-              scrollAnim.to = target
-              scrollAnim.restart()
-            }
-            onCurrentIndexChanged: Qt.callLater(center)
-            onCountChanged: Qt.callLater(center)
-            onWidthChanged: Qt.callLater(center)
-
-            NumberAnimation { id: scrollAnim; target: chips; property: "contentX"; duration: 220; easing.type: Easing.OutCubic }
-
-            delegate: Button {
-              required property var modelData
-              required property int index
-              anchors.verticalCenter: parent ? parent.verticalCenter : undefined
-              text: modelData.label
-              selected: index === root.sectionIndex
-              bordered: true
-              foreground: root.fg
-              fontFamily: root.fontFamily
-              fontSize: Style.font.caption
-              onClicked: root.showSection(index)
-            }
-          }
-        }
-      }
-
-      // ---- Texte affiché
-      Item {
-        id: stage
-        anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: footer.top; topMargin: Style.space(14); bottomMargin: Style.space(6) }
-        clip: true
-
-        Item {
-          id: page
-          width: parent.width
-          height: parent.height
-
-          ParallelAnimation {
-            id: slide
-            NumberAnimation { target: page; property: "x"; from: root.slideDirection * Style.space(40); to: 0; duration: 220; easing.type: Easing.OutCubic }
-            NumberAnimation { target: page; property: "opacity"; from: 0; to: 1; duration: 220; easing.type: Easing.OutCubic }
-            onStarted: flick.contentY = 0
-          }
-
-          Flickable {
-            id: flick
-            anchors.fill: parent
-            contentWidth: width
-            contentHeight: body.implicitHeight + Style.space(24)
-            clip: true
-            boundsBehavior: Flickable.StopAtBounds
-
-            function scrollBy(dy) {
-              contentY = Math.max(0, Math.min(contentHeight - height, contentY + dy))
-            }
-
-            ScrollBar.vertical: ScrollBar {
-              policy: flick.contentHeight > flick.height ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
-            }
-
-            Column {
-              id: body
-              width: flick.width - Style.space(16)
-              spacing: Style.space(4)
-
-              Text {
-                width: parent.width
-                visible: root.section !== null
-                text: root.section ? root.section.label.replace(/ \(autre\)$/, "") : ""
-                color: Color.accent
-                font.family: root.readingFont
-                font.pixelSize: Math.round(root.textSize * 1.35)
-                wrapMode: Text.Wrap
-              }
-              Text {
-                width: parent.width
-                visible: text !== ""
-                text: root.section ? root.section.ref : ""
-                color: root.dim
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.body
-                wrapMode: Text.Wrap
-              }
-              Item { width: 1; height: Style.space(8) }
-              Text {
-                width: parent.width
-                text: root.section ? root.section.html
-                  : (root.loading ? "Chargement…"
-                    : root.current && root.current.absent ? "L'AELF ne propose pas de textes pour cette date."
-                    : (root.error || "Rien pour cet office."))
-                textFormat: root.section ? Text.RichText : Text.PlainText
-                wrapMode: Text.Wrap
-                color: root.section ? root.fg : root.dim
-                font.family: root.readingFont
-                font.pixelSize: root.textSize
-                lineHeight: 1.15
-              }
-            }
-          }
-        }
-      }
-
-      // ---- Pied : position et raccourcis
-      Item {
-        id: footer
-        anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-        height: Style.space(18)
-
-        Row {
-          anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-          spacing: Style.space(5)
-          Repeater {
-            model: root.sections.length
-            delegate: Rectangle {
-              required property int index
-              anchors.verticalCenter: parent.verticalCenter
-              width: index === root.sectionIndex ? Style.space(14) : Style.space(5)
-              height: Style.space(5)
-              radius: Style.cornerRadius
-              color: index === root.sectionIndex ? root.selectedColor : root.line
-              Behavior on width { NumberAnimation { duration: 150 } }
-            }
-          }
-        }
-        Text {
-          anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-          text: "← → textes · Tab offices · p s jours · d date"
-          color: root.line
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.caption
-        }
-      }
+    Reader {
+      id: windowReader
+      anchors.fill: parent
+      anchors.margins: Style.spacing.popupPadding
+      s: root
+      windowed: true
+      focus: true
+      onDetachRequested: root.attach()
     }
   }
 }

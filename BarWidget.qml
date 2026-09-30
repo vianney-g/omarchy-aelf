@@ -14,9 +14,19 @@ BarWidget {
   readonly property bool opened: panelItem ? panelItem.opened === true : false
   readonly property bool popoutSwitchClosing: panelItem ? panelItem.popoutSwitchClosing === true : false
 
-  function open() { if (panelItem) panelItem.open() }
+  // Fenêtre détachée ouverte : l'icône la met au premier plan au lieu
+  // d'ouvrir le panneau.
+  function open() {
+    if (!panelItem) return
+    if (panelItem.windowed) panelItem.focusWindow()
+    else panelItem.open()
+  }
   function close() { if (panelItem) panelItem.close() }
-  function toggle() { if (panelItem) panelItem.toggle() }
+  function toggle() {
+    if (!panelItem) return
+    if (panelItem.windowed) panelItem.focusWindow()
+    else panelItem.toggle()
+  }
   function closeForPopoutSwitch() { if (panelItem) panelItem.closeForPopoutSwitch() }
 
   function injectPanel() {
@@ -42,7 +52,7 @@ BarWidget {
     onLoaded: { root.injectPanel(); Qt.callLater(root.injectPanel) }
   }
 
-  // omarchy-shell io.github.vianney-g.aelf toggle | open <office> | status
+  // omarchy-shell io.github.vianney-g.aelf toggle | open <office> | date <texte> | detach | status
   // office : messes, lectures, laudes, tierce, sexte, none, vepres, complies
   // Le widget existe en plusieurs exemplaires (un par écran, plus une copie
   // invisible) : on passe par la barre pour viser celui de l'écran actif.
@@ -55,6 +65,7 @@ BarWidget {
     }
     function toggle(): void { widget().toggle() }
     function close(): void { widget().close() }
+    function detach(): void { var w = widget(); if (w.panelItem) w.panelItem.detach() }
     function open(office: string): void {
       var w = widget()
       if (!w.panelItem) return
@@ -72,7 +83,7 @@ BarWidget {
     }
     function status(): string {
       var p = widget().panelItem
-      return p ? JSON.stringify({ opened: p.opened, date: p.date, office: p.officeId, section: p.section ? p.section.label : "", editingDate: p.editingDate, absent: p.dateAbsent, cachedDates: p.recentDates.length, cacheEntries: Object.keys(p.cache).length, loading: p.loading, error: p.error }) : "{}"
+      return p ? JSON.stringify({ opened: p.opened, date: p.date, office: p.officeId, section: p.section ? p.section.label : "", editingDate: p.editingDate, absent: p.dateAbsent, windowed: p.windowed, cachedDates: p.recentDates.length, cacheEntries: Object.keys(p.cache).length, loading: p.loading, error: p.error }) : "{}"
     }
   }
 

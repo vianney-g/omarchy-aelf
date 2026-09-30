@@ -22,6 +22,10 @@ Une icône dans la barre (infobulle : le jour liturgique) ouvre un panneau :
 - Navigation par date : `‹ ›`, bouton « Aujourd'hui », ou un clic sur la date
   pour en taper une : `25/12`, `2027-01-06`, `8 décembre`, `+7`, `demain`…
   L'AELF publie les textes environ neuf mois à l'avance.
+- Mode fenêtre : le bouton « Détacher » (ou `w`) ouvre la lecture dans une vraie
+  fenêtre Hyprland, en mosaïque, au même endroit de lecture. Tant qu'elle est
+  ouverte, l'icône de la barre la met au premier plan ; « Rattacher » (ou `w`)
+  revient au panneau, comme la fermeture de la fenêtre.
 
 | Touche | Action |
 |--------|--------|
@@ -33,6 +37,7 @@ Une icône dans la barre (infobulle : le jour liturgique) ouvre un panneau :
 | `a` | revenir à aujourd'hui |
 | `d` | taper une date (`Entrée` valide, `Échap` annule) |
 | `m` | messe suivante (jours à plusieurs messes) |
+| `w` | détacher dans une fenêtre / rattacher au panneau |
 | `r` | recharger |
 | `Échap` | fermer |
 
@@ -79,7 +84,12 @@ Raccourcis et scripts :
 omarchy-shell shell toggle io.github.vianney-g.aelf      # ouvrir / fermer
 omarchy-shell io.github.vianney-g.aelf open laudes       # un office précis
 omarchy-shell io.github.vianney-g.aelf date 25/12        # une date
+omarchy-shell io.github.vianney-g.aelf detach            # mode fenêtre
 ```
+
+La fenêtre détachée a pour titre `AELF`, ce qui permet de lui écrire des règles
+Hyprland, par exemple pour l'envoyer sur un espace de travail. Elle vit dans le
+processus du shell : `omarchy restart shell` la ferme.
 
 ## Dépendances
 
